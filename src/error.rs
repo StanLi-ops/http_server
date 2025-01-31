@@ -1,12 +1,15 @@
 use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    body::Body,
+    http::{Response, StatusCode},
+    response::IntoResponse,
 };
+use serde::Serialize;
 use std::io;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, strum_macros::AsRefStr)]
+#[serde(tag = "type", content = "data")]
 pub enum Error {
     LoginFailed,
     IoError(String),
@@ -23,23 +26,13 @@ impl From<io::Error> for Error {
 }
 
 impl IntoResponse for Error {
-    fn into_response(self) -> Response {
+    fn into_response(self) -> Response<Body> {
         println!("->> {:<12} - {:?}", "INTO_RES", self);
 
-        match self {
-            Error::LoginFailed => (StatusCode::UNAUTHORIZED, "Login failed").into_response(),
-            Error::TicketDeleteFailIdNotFound { id } => (
-                StatusCode::NOT_FOUND,
-                format!("Ticket with id {} not found", id),
-            )
-                .into_response(),
-            Error::IoError(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("IO error: {}", err),
-            )
-                .into_response(),
-            _ => (StatusCode::INTERNAL_SERVER_ERROR, "UNHANDLED_CLIENT_ERROR").into_response(),
-        }
+        let mut response = StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        response.extensions_mut().insert(self);
+
+        response
     }
 }
 
@@ -50,3 +43,26 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl Error {
+    pub fn client_status_and_error(&self) -> (StatusCode, ClientError) {
+        match self {
+            Error::LoginFailed => (StatusCode::FORBIDDEN, ClientError::LoginFail),
+            Error::AuthFailNoAuthTokenCookie => (StatusCode::FORBIDDEN, ClientError::NotAuth),
+            Error::AuthFailTonkenWrongFormat => (StatusCode::FORBIDDEN, ClientError::NotAuth),
+            Error::AuthFailCtxNotInResultExt => (StatusCode::FORBIDDEN, ClientError::NotAuth),
+            Error::TicketDeleteFailIdNotFound { id: _ } => {
+                (StatusCode::BAD_REQUEST, ClientError::InvalidParams)
+            }
+            _ => (StatusCode::INTERNAL_SERVER_ERROR, ClientError::ServiceError),
+        }
+    }
+}
+
+#[derive(Debug, strum_macros::AsRefStr)]
+pub enum ClientError {
+    LoginFail,
+    NotAuth,
+    InvalidParams,
+    ServiceError,
+}
