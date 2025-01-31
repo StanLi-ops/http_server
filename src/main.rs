@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         .merge(web::routes_login::routes())
         .nest("/api", app_apis)
         .layer(middleware::map_response(main_response_mapper))
-        // .layer(middleware::from_fn(web::mv_auth::mw_ctx_resolver))
+        //.layer(middleware::from_fn(web::mv_auth::mw_ctx_resolver))
         .layer(middleware::from_fn_with_state(
             mc.clone(),
             web::mw_auth::mw_ctx_resolver,
@@ -60,14 +60,18 @@ async fn main() -> Result<()> {
 }
 
 async fn main_response_mapper(
-    ctx: Option<Ctx>,
-    uri: Uri,
-    req_method: Method,
+    // uri: Uri,
+    // req_method: Method,
+    // ctx: Option<Ctx>,
     res: Response,
 ) -> Response {
     println!("->> {:<12} - main_response_mapper", "RES_MAPPER");
 
     let uuid = Uuid::new_v4();
+
+    let uri = res.extensions().get::<Uri>().cloned().unwrap_or_default();
+    let req_method = res.extensions().get::<Method>().cloned().unwrap_or_default();
+    let ctx = res.extensions().get::<Option<Ctx>>().cloned().flatten();
 
     let service_error = res.extensions().get::<Error>();
 
@@ -95,7 +99,7 @@ async fn main_response_mapper(
     let _ = log_request(uuid, uri, req_method, ctx, service_error, client_error).await;
 
     println!();
-    
+
     error_response.unwrap_or(res)
 }
 

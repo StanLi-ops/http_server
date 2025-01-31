@@ -61,7 +61,7 @@ pub async fn log_request(
         error_data,
     };
 
-    println!("   ->> log_request: \n{}", json!(request_log_liene));
+    println!("   -->> log_request: \n{}", json!(request_log_liene));
 
     Ok(())
 }
